@@ -9,7 +9,8 @@ struct block {
 
 typedef struct block block;
 
-block tail;
+block *head = NULL;
+block *tail = NULL;
 
 char* HEAP_START = NULL;
 char* HEAP_END = NULL;
@@ -28,7 +29,7 @@ void init() {
 size_t align8(size_t size) {
     if (size % ALIGN_AMT == 0) return size;
 
-    return (size / ALIGN_AMT) * ALIGN_AMT + (size - size % ALIGN_AMT); 
+    return ((size / ALIGN_AMT) + 1) * 8; 
 }
 
 void* a_malloc(size_t size) {
@@ -44,7 +45,7 @@ void* a_malloc(size_t size) {
         available_space = HEAP_END - PTR;
     }
 
-    if (tail.size == 0) { // not initialized
+    if (head == NULL) {
         
     }
 
