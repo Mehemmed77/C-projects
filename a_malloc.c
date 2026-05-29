@@ -19,6 +19,7 @@ char* PTR = NULL;
 
 const int ALIGN_AMT = 8;
 const int INC_AMT = 4096;
+const unsigned int SPLIT_THR = 128;
 
 void print_heap() {
     block* curr = head;
@@ -46,20 +47,30 @@ void insert_new_block(void* ptr, size_t size, char symbol) {
     tail = new_block;
 }
 
-char* find_first_fit(size_t size, char symbol) {
+block* find_first_fit(size_t size) {
     block* curr = head;
 
     while(curr != NULL) {
-        if (curr->free && curr->size >= size) {
-            curr->symbol = symbol;
-            curr->free = 0;
-            return (char*) curr + sizeof(block);
-        }
+        if (curr->free && curr->size >= size) return curr;
 
         curr = curr->next;
     }
 
     return NULL;
+}
+
+void split_block(block* b, size_t size) {
+    block* prev_next = b->next;
+
+    block* new_b = (block*) ((char*) (b + 1) + size);
+
+    new_b->free = 1;
+    new_b->size = b->size - size - sizeof(block);
+    new_b->next = prev_next;
+    new_b->symbol = '?';
+
+    b->next = new_b;
+    b->size = size;
 }
 
 void init() {
@@ -82,9 +93,18 @@ void* a_malloc(size_t size, char symbol) {
 
     int available_space = (int) (HEAP_END - PTR);
 
-    char* addr = find_first_fit(size, symbol);
+    block* b = find_first_fit(size);
 
-    if(addr != NULL) return addr;
+    if(b != NULL) {
+        if(b->size - size - sizeof(block) >= SPLIT_THR) {
+            split_block(b, size);
+        };
+
+        b->free = 0;
+        b->symbol = symbol;
+
+        return (void *) (b + 1);
+    }
 
     while(available_space < size + sizeof(block)) {
         sbrk(INC_AMT);
@@ -102,19 +122,22 @@ void* a_malloc(size_t size, char symbol) {
 
 void a_free(void* ptr) {
     block* block_ptr = (block *) ((char *) ptr - sizeof(block));
-    
+
     block_ptr->free = 1;
 }
 
 int main() {
-    int* a = (int *) a_malloc(10, 'a');
-    int* b = (int *) a_malloc(20, 'b');
-    int* c = (int *) a_malloc(20, 'c');
-    
-    print_heap();
-    a_free(c);
+    char* a = a_malloc(300, 'A');
 
-    int* d = (int *) a_malloc(20, 'd');
+    print_heap();
+
+    printf("\n=== FREE A ===\n\n");
+    a_free(a);
+
+    print_heap();
+
+    printf("\n=== ALLOCATE SMALLER BLOCK ===\n\n");
+    char* b = a_malloc(50, 'B');
 
     print_heap();
 
