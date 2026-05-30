@@ -10,19 +10,25 @@ struct block {
 
 typedef struct block block;
 
-block* head = NULL;
-block* tail = NULL;
+typedef struct {
+    block* head;
+    block* tail;
 
-char* HEAP_START = NULL;
-char* HEAP_END = NULL;
-char* PTR = NULL;
+    char* HEAP_START;
+    char* HEAP_END;
+    char* PTR;
+} allocator_t;
 
-const int ALIGN_AMT = 8;
-const int INC_AMT = 4096;
-const unsigned int SPLIT_THR = 128;
+static allocator_t allocator;
+
+enum {
+    ALIGN_AMT = 8,
+    INC_AMT = 4096,
+    SPLIT_THR = 128
+};
 
 void print_heap() {
-    block* curr = head;
+    block* curr = allocator.head;
     char* user_memory_address;
 
     while(curr != NULL) {
@@ -33,6 +39,23 @@ void print_heap() {
     }
 }
 
+void coalesce_blocks() {
+    if (allocator.head == NULL) return;
+
+    block* curr = allocator.head;
+    block* next = curr->next;
+
+    while(curr && next) {
+        if (curr->free && next->free) {
+            curr->size += sizeof(block) + next->size;
+            curr->next = next->next;
+        }
+
+        curr = curr->next;
+        if (curr) next = curr->next;
+    }
+}
+
 void insert_new_block(void* ptr, size_t size, char symbol) {
     block* new_block = (block*) ptr;
     new_block->free = 0;
@@ -40,15 +63,15 @@ void insert_new_block(void* ptr, size_t size, char symbol) {
     new_block->next = NULL;
     new_block->symbol = symbol;
 
-    if (head == NULL) head = new_block;
+    if (allocator.head == NULL) allocator.head = new_block;
 
-    if (tail != NULL) tail->next = new_block;
+    if (allocator.tail != NULL) allocator.tail->next = new_block;
 
-    tail = new_block;
+    allocator.tail = new_block;
 }
 
 block* find_first_fit(size_t size) {
-    block* curr = head;
+    block* curr = allocator.head;
 
     while(curr != NULL) {
         if (curr->free && curr->size >= size) return curr;
@@ -74,10 +97,10 @@ void split_block(block* b, size_t size) {
 }
 
 void init() {
-    HEAP_START = sbrk(0);
+    allocator.HEAP_START = sbrk(0);
     sbrk(INC_AMT);
-    HEAP_END = HEAP_START + INC_AMT;
-    PTR = HEAP_START;
+    allocator.HEAP_END = allocator.HEAP_START + INC_AMT;
+    allocator.PTR = allocator.HEAP_START;
 }
 
 size_t align8(size_t size) {
@@ -87,11 +110,11 @@ size_t align8(size_t size) {
 }
 
 void* a_malloc(size_t size, char symbol) {
-    if (HEAP_START == NULL) init();
+    if (allocator.HEAP_START == NULL) init();
 
     size = align8(size);
 
-    int available_space = (int) (HEAP_END - PTR);
+    int available_space = (int) (allocator.HEAP_END - allocator.PTR);
 
     block* b = find_first_fit(size);
 
@@ -108,14 +131,14 @@ void* a_malloc(size_t size, char symbol) {
 
     while(available_space < size + sizeof(block)) {
         sbrk(INC_AMT);
-        HEAP_END += INC_AMT;
-        available_space = HEAP_END - PTR;
+        allocator.HEAP_END += INC_AMT;
+        available_space = allocator.HEAP_END - allocator.PTR;
     }
 
-    insert_new_block(PTR, size, symbol);
+    insert_new_block(allocator.PTR, size, symbol);
 
-    void *curr = (void *) (PTR + sizeof(block));
-    PTR += sizeof(block) + size;
+    void *curr = (void *) (allocator.PTR + sizeof(block));
+    allocator.PTR += sizeof(block) + size;
 
     return curr;
 }
@@ -127,18 +150,20 @@ void a_free(void* ptr) {
 }
 
 int main() {
-    char* a = a_malloc(300, 'A');
+    char* a = a_malloc(100, 'A');
+    char* b = a_malloc(100, 'B');
+    char* c = a_malloc(100, 'C');
+    char* d = a_malloc(100, 'D');
 
+    a_free(b);
+    a_free(c);
+
+    printf("=== BEFORE COALESCING ===\n");
     print_heap();
 
-    printf("\n=== FREE A ===\n\n");
-    a_free(a);
+    coalesce_blocks();
 
-    print_heap();
-
-    printf("\n=== ALLOCATE SMALLER BLOCK ===\n\n");
-    char* b = a_malloc(50, 'B');
-
+    printf("=== AFTER COALESCING ===\n");
     print_heap();
 
     return 0;
