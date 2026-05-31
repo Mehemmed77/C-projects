@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 #define FNV_32_PRIME ((uint32_t)0x01000193)
 #define FNV_32_OFFSET ((uint32_t)0x811C9DC5)
@@ -19,6 +20,18 @@ typedef struct hashmap_t {
     int size;
     bucket** buckets;
 } hashmap;
+
+char* copy_str(char* str) {
+    size_t len = strlen(str) + 1;
+
+    char* new_str = malloc(len);
+
+    for(int i = 0; i < len; i++) {
+        *(new_str + i) = *(str + i);
+    }
+
+    return new_str;
+}
 
 uint32_t fnv1a_32_str(char* key)  {
     uint32_t hash = FNV_32_OFFSET;
@@ -56,7 +69,7 @@ bool key_equality(char* key1, char* key2) {
 
 bucket* init_bucket(char* key, void* value) {
     bucket* b = malloc(sizeof(bucket));
-    b->key = key;
+    b->key = copy_str(key);
     b->value = value;
     b->next = NULL;
 
@@ -79,7 +92,6 @@ void hashmap_put(hashmap* map, char* key, void* value) {
     bucket* prev = NULL;
     
     while(b != NULL) {
-        printf("%c, %c\n", *(b->key + 3), *(key + 3));
         if(key_equality(b->key, key)) {
             b->value = value;
             return;
@@ -90,8 +102,6 @@ void hashmap_put(hashmap* map, char* key, void* value) {
     }
 
     prev->next = init_bucket(key, value);
-
-    printf("%c\n", *key);
 }
 
 int main() {
