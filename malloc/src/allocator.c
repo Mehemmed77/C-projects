@@ -2,14 +2,12 @@
 #include <unistd.h>
 #include "allocator.h"
 
-struct block {
+typedef struct block_t {
     struct block *next;
     size_t size; // excluding metadata
     unsigned int free: 1;
     char symbol;
-};
-
-typedef struct block block;
+} block;
 
 typedef struct {
     block* head;
