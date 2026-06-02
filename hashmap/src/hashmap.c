@@ -33,6 +33,13 @@ char* copy_str(char* str) {
     return new_str;
 }
 
+void print_str(char* str) {
+    while(*str) {
+        printf("%c", *str);
+        str++;
+    }
+}
+
 uint32_t fnv1a_32_str(char* key)  {
     uint32_t hash = FNV_32_OFFSET;
 
@@ -76,32 +83,114 @@ bucket* init_bucket(char* key, void* value) {
     return b;
 }
 
-void hashmap_put(hashmap* map, char* key, void* value) {
-    uint32_t hash = fnv1a_32_str(key);
-    size_t idx = hash % map->capacity;
+insert_existing_bucket(
+    bucket** buckets,
+    bucket* existing_bucket,
+    int capacity
+)
+{
+    uint32_t hash = fnv1a_32_str(existing_bucket->key);
+    size_t idx = hash % capacity;
 
-    bucket** buckets = map->buckets;
-
-    bucket* b = *(buckets + idx);
+    bucket* b = buckets[idx];
 
     if (b == NULL) {
-        buckets[idx] = init_bucket(key, value);
+        buckets[idx] = existing_bucket;
         return;
     }
 
     bucket* prev = NULL;
-    
     while(b != NULL) {
-        if(key_equality(b->key, key)) {
+        prev = b;
+        b = b-> next;
+    }
+
+    prev->next = existing_bucket;
+}
+
+bool insert_new_bucket(
+    bucket** buckets,
+    char* key,
+    void* value,
+    int capacity
+) {
+    // returns true if new key was added, otherwise false
+    uint32_t hash = fnv1a_32_str(key);
+    size_t idx = hash % capacity;
+
+    bucket* b = buckets[idx];
+
+    if (b == NULL) {
+        buckets[idx] = init_bucket(key, value);
+        return true;
+    }
+
+    bucket* prev = NULL;
+    while(b != NULL) {
+        if (key_equality(b->key, key)) {
             b->value = value;
-            return;
-        };
+            return false;
+        }
 
         prev = b;
-        b = b->next;
+        b = b-> next;
     }
 
     prev->next = init_bucket(key, value);
+    return true;
+}
+
+// void free_buckets(bucket** buckets, int capacity) {
+//     for(int idx = 0; idx < capacity; idx++) {
+//         bucket* b = buckets[idx];
+
+//         bucket* temp = b;
+//         while(temp != NULL) {
+//             temp = b->next;
+//             free(b->key);
+//             free(b);
+//             b = temp;
+//         }
+//     }
+
+//     free(buckets);
+// }
+
+bucket** resize(hashmap* map) {
+    int old_capacity = map->capacity;
+
+    bucket** old_buckets = map->buckets;
+    bucket** new_buckets = calloc(old_capacity * 2, sizeof(bucket*));
+
+    for(int idx = 0; idx < old_capacity; idx++) {
+        bucket* b = old_buckets[idx];
+
+        bucket* next;
+
+        while(b != NULL) {
+            next = b->next; 
+            b->next;
+            insert_existing_bucket(new_buckets, b, old_capacity * 2);
+            b = next;
+        }
+    }
+
+    return new_buckets;
+}
+
+void hashmap_put(hashmap* map, char* key, void* value) {
+    float load_factor = (float) map->size / map->capacity;
+
+    if (load_factor > 0.75) {
+        bucket** new_buckets = resize(map);
+        // free_buckets(map->buckets, map->capacity);
+        map->capacity *= 2;
+        map->buckets = new_buckets;
+    }
+
+    bool new_key_was_added = insert_new_bucket(map->buckets, key, value, map->capacity);
+
+    if(new_key_was_added) map->size++; 
 }
 
 int main() {
