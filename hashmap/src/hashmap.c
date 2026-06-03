@@ -9,7 +9,7 @@
 
 #define FNV_32_PRIME ((uint32_t)0x01000193)
 #define FNV_32_OFFSET ((uint32_t)0x811C9DC5)
-#define INITIAL_CAPACITY 2
+#define INITIAL_CAPACITY 8
 
 typedef struct bucket_t {
     char* key;
@@ -188,7 +188,9 @@ void hashmap_put(hashmap* map, char* key, void* value) {
     float load_factor = (float) map->size / map->capacity;
     
     if (load_factor > 0.75) {
+        bucket** old_buckets = map->buckets;
         bucket** new_buckets = resize(map);
+        free(old_buckets);
         map->capacity *= 2;
         map->buckets = new_buckets;
     }
@@ -228,7 +230,7 @@ void* hashmap_get(hashmap* map, char* key) {
     return NULL;
 }
 
-bool hahsmap_remove(hashmap* map, char* key) {
+bool hashmap_remove(hashmap* map, char* key) {
     uint32_t hash = fnv1a_32_str(key);
     size_t idx = hash % map->capacity;
     
